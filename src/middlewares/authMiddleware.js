@@ -1,6 +1,6 @@
 import { COLLECTIONS } from '../enums/collections.js';
 import { STATUS_CODE } from '../enums/statusCode.js';
-import mongo from '../db/db.js';
+import connection from '../db/db.js';
 
 async function authMiddleware(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');

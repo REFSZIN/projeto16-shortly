@@ -1,21 +1,16 @@
-import { MongoClient } from 'mongodb';
-import dotenv from "dotenv";
-// const connection = new Pool({
-//     connectionString: process.env.DATABASE_URL,
-//   });
+import pg from 'pg';
+import dotenv from 'dotenv';
 dotenv.config();
 
-const mongoClient = new MongoClient(process.env.MONGO_URI)
+const { Pool } = pg;
 
-export default async function mongo () {
-    let connect;
-    try {
-        connect = mongoClient.db(process.env.DB_NAME)
-    return connect;
-    } catch (error) {
-        console.error("Não foi possível se conectar", error)
-        return error;    
-    }
-}const connection = new Pool({
+const databaseConfig = {
     connectionString: process.env.DATABASE_URL,
-  });
+    ssl: {
+        rejectUnauthorized: false
+    }
+}
+
+const connection = new Pool(databaseConfig);
+
+export default connection;

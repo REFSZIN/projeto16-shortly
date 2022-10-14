@@ -1,12 +1,11 @@
 
 import bcrypt from 'bcrypt';
-import mongo from '../db/db.js';
+import connection from '../db/db.js';
 import { v4 as uuid } from 'uuid';
 import { STATUS_CODE } from '../enums/statusCode.js';
 import { COLLECTIONS } from '../enums/collections.js';
 import { schemaCadrasto,schemaLogin } from '../schemas/authSchemas.js';
 
-let db = await mongo();
 
 const signUp = async (req, res) => {
   const { name, email, password, confirmPassword } = req.body;

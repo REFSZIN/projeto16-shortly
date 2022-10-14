@@ -1,11 +1,9 @@
-import mongo from '../db/db.js';
+import connection from '../db/db.js';
 import { STATUS_CODE } from '../enums/statusCode.js';
 import { COLLECTIONS } from '../enums/collections.js';
-import {ObjectId} from "mongodb";
-import { schemaCheckout,schemaCart } from '../schemas/storeSchemas.js';
-let db = await mongo();
+import { schemaCheckout,schemaCart } from '../schemas/shortSchemas.js';
 
-const listProducts = async (req, res) =>{
+const shortLink = async (req, res) =>{
   try {
       const products = await db.collection(COLLECTIONS.PRODUCTS).find().toArray();
       return res.send(products);
@@ -15,7 +13,7 @@ const listProducts = async (req, res) =>{
   };
 };
 
-const sendToCart = async (req, res) =>{
+const showShort = async (req, res) =>{
   const {product, email } = req.body;
   const cart = {product,email};
   const valid = schemaCart.validate(cart, {abortEarly: false});
@@ -39,7 +37,7 @@ const sendToCart = async (req, res) =>{
   }
 };
 
-const listCart = async (req, res) =>{
+const openShort = async (req, res) =>{
   const { email } = req.body;
   try {
       const myCart = await db.collection(COLLECTIONS.CARTS).find(email).toArray();
@@ -50,7 +48,7 @@ const listCart = async (req, res) =>{
   };
 };
 
-const deleteInMyCart = async (req, res) =>{
+const deleteShort = async (req, res) =>{
   const { ID } = req.params;
   try {
       const message = await db.collection(COLLECTIONS.CARTS).findOne({_id: ObjectId(`${ID}`)});
@@ -64,7 +62,7 @@ const deleteInMyCart = async (req, res) =>{
   }
 };
 
-const checkouts = async (req, res) =>{
+const listShortUsers = async (req, res) =>{
   const { user } = res.locals;
   try {
       const checkout = await db.collection(COLLECTIONS.CHECKOUTS).find({email: user.email});
@@ -77,7 +75,7 @@ const checkouts = async (req, res) =>{
   }
 };
 
-const postCheckout = async (req, res) =>{
+const showRanking = async (req, res) =>{
   const { user } = res.locals;
 
   const{
@@ -92,6 +90,7 @@ const postCheckout = async (req, res) =>{
     price} = req.body;
 
   const pedido ={   
+    user,
     email,
     cep,
     number,
@@ -127,4 +126,4 @@ const postCheckout = async (req, res) =>{
   }
 };
 
-export {listProducts,sendToCart,postCheckout,checkouts,deleteInMyCart,listCart};
+export {showRanking,listShortUsers,deleteShort,openShort,showShort,shortLink };
