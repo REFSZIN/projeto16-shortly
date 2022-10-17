@@ -35,7 +35,7 @@ const signUp = async (req, res) => {
       [`${email}%`]
     );
 
-    if(verificaUser) {
+    if(!verificaUser) {
       return res.status(STATUS_CODE.ERRORCONFLICT).send(
         `Email existente : ${email}`)
     };
@@ -46,7 +46,7 @@ const signUp = async (req, res) => {
       VALUES 
         ($1, $2, $3);
     `,
-      [`${name}%`, `${email}%`,`${passwordHash}%`]
+      [`${name}`, `${email}`,`${passwordHash}`]
     );
     res.status(STATUS_CODE.SUCCESSCREATED).send(`Criado com sucesso`);
     return
@@ -72,35 +72,35 @@ const signIn = async (req, res) => {
   };
 
   try {
-    const user = await connection.query( `
+    const {rows:user}= await connection.query( `
     SELECT * FROM ${COLLECTIONS.USERS} WHERE email LIKE $1;
     `,
-      [`${email}%`]
-    );;
+      [`${email}`]
+    );
 
     if(user === undefined || null){
       res.status(STATUS_CODE.ERRORUNPROCESSABLEENTITY).send(
         `Usuário não encontrado (email ou senha incorretos)`
         ); 
     }
-    const passwordIsValid = bcrypt.compareSync(password, user.password);
-
+    const passwordIsValid = await bcrypt.compare(password,user[0].password);
+    
     if(user && passwordIsValid) {
         const token = uuid();
         connection.query(
           `
           INSERT INTO ${COLLECTIONS.SESSIONS} 
-            (userId, token)
+            ("userId", "token")
           VALUES 
             ($1, $2);
         `,
-          [`${user.id}%`, `${token}%`]
+          [`${user[0].id}`, `${token}`]
         );
-        
-        const response = {token, name: user.name , email: user.email, password};
-
-        res.status(STATUS_CODE.SUCCESSCREATED).send(response);
-        return
+        const response = {token, name: user[0].name , email: user[0].email, password};
+        if(response){
+          res.status(STATUS_CODE.SUCCESSCREATED).send(response);
+          return
+        }
     } else {
       res.status(STATUS_CODE.ERRORUNPROCESSABLEENTITY).send(
         `Usuário não encontrado (email ou senha incorretos)`

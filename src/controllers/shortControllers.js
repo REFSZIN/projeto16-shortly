@@ -13,7 +13,7 @@ const shortLink = async (req, res) =>{
     const { rows:session } = await connection.query(`
         SELECT * FROM ${COLLECTIONS.SESSIONS} s
         WHERE s.token = $1`,
-        [`${token}%`]
+        [`${token}`]
       );
     if(session === undefined || null || session.length === 0){
       res.status(STATUS_CODE.ERRORUNAUTHORIZED).send(
@@ -22,11 +22,11 @@ const shortLink = async (req, res) =>{
     }
     const shortenedUrl = nanoid(8);
     connection.query(`
-        INSERT INTO ${COLLECTIONS.LINKS} (url,"short","userId")
+        INSERT INTO ${COLLECTIONS.LINKS} ("url","short","userId")
         VALUES ($1,$2,$3)`,
-      [`${cleansedUrl.trim()}%`,`${shortenedUrl}%`,`${session[0].userId}%`]
+      [`${cleansedUrl}`,`${shortenedUrl}`,`${session[0].userId}`]
     );
-    return res.status(STATUS_CODE.SUCCESSOK).send({shortUrl:shortenedUrl});
+    return res.status(STATUS_CODE.SUCCESSOK).send(shortenedUrl);
   } catch (error) {
       if(error.constraint === 'proper_url') return res.status(STATUS_CODE.ERRORUNPROCESSABLEENTITY).send({message:'Invalid URL Format'});
       return res.sendStatus(STATUS_CODE.SERVERERRORINTERNAL);
@@ -40,7 +40,7 @@ const showShort = async (req, res) =>{
       const { rows:url } = await connection.query(`
           SELECT * FROM  ${COLLECTIONS.LINKS} l
           WHERE u.id = $1`,
-        [`${id}%`]
+        [`${id}`]
       );
       if(!url.length > 0) return res.sendStatus(STATUS_CODE.ERRORNOTFOUND)
       const body = {
@@ -84,7 +84,7 @@ const deleteShort = async (req, res) =>{
     const { rows:session } = await connection.query(`
       SELECT * FROM ${COLLECTIONS.SESSIONS} s
       WHERE s.token = $1`,
-    [`${token}%`]
+    [`${token}`]
   );
   if(session === undefined || null || session.length === 0){
     res.status(STATUS_CODE.ERRORUNAUTHORIZED).send(
@@ -94,7 +94,7 @@ const deleteShort = async (req, res) =>{
   const { rows:url } = await connection.query(`
       SELECT * FROM  ${COLLECTIONS.LINKS} l
       WHERE u.id = $1`,
-    [`${id}%`]
+    [`${id}`]
   );
   if(!url.length > 0 || url === undefined || url === null){
     return res.sendStatus(STATUS_CODE.ERRORNOTFOUND);
@@ -103,7 +103,7 @@ const deleteShort = async (req, res) =>{
   connection.query(`
       DELETE FROM ${COLLECTIONS.LINKS} l
       WHERE id = $1`,
-    [`${id}%`]
+    [`${id}`]
   );
   res.sendStatus(STATUS_CODE.SUCCESSNOCONTENT);
   } catch (error) { 
@@ -118,14 +118,14 @@ const listShortUsers = async (req, res) =>{
         SELECT s.*,users.name FROM ${COLLECTIONS.SESSIONS} s
         JOIN ${COLLECTIONS.USERS} ON ${COLLECTIONS.USERS}.id = s."userId"
         WHERE s.token = $1`,
-      [`${token}%`]
+      [`${token}`]
     );
     if(!session.length > 0) return res.sendStatus(COLLECTIONS.ERRORUNAUTHORIZED);
     const { rows:userInfo } = connection.query(`
         SELECT u.id,u.url,u."short",u."visitCount" FROM ${COLLECTIONS.RANKING} u
         WHERE u."userId" = $1
         ORDER BY u."visitCount" DESC`,
-      [`${session[0].userId}%`]
+      [`${session[0].userId}`]
     );
       let totalVisits = 0
       userInfo.forEach(url => totalVisits+=url.visitCount);
@@ -154,7 +154,7 @@ const showRanking = async (req, res) =>{
     connection.query(`
     SELECT u.id,u.url,u."shortUrl",u."visitCount" FROM ${COLLECTIONS.LINKS} u
     WHERE u."userId" = $1
-    ORDER BY u."visitCount" DESC`,[`${id}%`]);
+    ORDER BY u."visitCount" DESC`,[`${id}`]);
     res.status(STATUS_CODE.SUCCESSOK).send(body)
   } catch (error) {
     res.sendStatus(STATUS_CODE.SERVERERRORINTERNAL);
