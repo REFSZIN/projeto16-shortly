@@ -19,22 +19,34 @@ const signUp = async (req, res) => {
 
   const valid = schemaCadrasto.validate(newUser, {abortEarly: false});
 
-  if(valid.errorMessage){
+  if(valid.errorMessage || confirmPassword !== password ){
     const erros = validation.error.details.map((err) => err.message);
     res.status(STATUS_CODE.ERRORUNPROCESSABLEENTITY).send(
       `Todos os campos são obrigatórios! : ${erros}`
       ); 
     return
   };
+
   const passwordHash = bcrypt.hashSync(newUser.password, 10);
   try {
-    const verificaUser = await db.collection(COLLECTIONS.USERS).findOne({email: email})
+    const verificaUser = await connection.query( `
+    SELECT * FROM ${COLLECTIONS.USERS} WHERE email LIKE $1;
+    `,
+      [`${email}%`]
+    );
+
     if(verificaUser) {
       return res.status(STATUS_CODE.ERRORCONFLICT).send(
         `Email existente : ${email}`)
     };
-    await db.collection(COLLECTIONS.USERS).insertOne(
-      {name, email, password: passwordHash}
+    await connection.query(
+      `
+      INSERT INTO ${COLLECTIONS.USERS} 
+        (name, email, password)
+      VALUES 
+        ($1, $2, $3);
+    `,
+      [`${name}%`, `${email}%`,`${passwordHash}%`]
     );
     res.status(STATUS_CODE.SUCCESSCREATED).send(`Criado com sucesso`);
     return
@@ -60,7 +72,12 @@ const signIn = async (req, res) => {
   };
 
   try {
-    const user = await db.collection(COLLECTIONS.USERS).findOne({email});
+    const user = await connection.query( `
+    SELECT * FROM ${COLLECTIONS.USERS} WHERE email LIKE $1;
+    `,
+      [`${email}%`]
+    );;
+
     if(user === undefined || null){
       res.status(STATUS_CODE.ERRORUNPROCESSABLEENTITY).send(
         `Usuário não encontrado (email ou senha incorretos)`
@@ -70,13 +87,17 @@ const signIn = async (req, res) => {
 
     if(user && passwordIsValid) {
         const token = uuid();
-        await db.collection(COLLECTIONS.SESSIONS).insertOne({
-          userId: user._id,
-          token
-        })
-        const legthCarts = await db.collection(COLLECTIONS.CARTS).find({email:email}).toArray().legth;
+        connection.query(
+          `
+          INSERT INTO ${COLLECTIONS.SESSIONS} 
+            (userId, token)
+          VALUES 
+            ($1, $2);
+        `,
+          [`${user.id}%`, `${token}%`]
+        );
         
-        const response = {token, name: user.name , email: user.email, password, legthCarts};
+        const response = {token, name: user.name , email: user.email, password};
 
         res.status(STATUS_CODE.SUCCESSCREATED).send(response);
         return

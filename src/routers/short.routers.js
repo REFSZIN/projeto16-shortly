@@ -3,7 +3,7 @@ import { showRanking,listShortUsers,deleteShort,openShort,showShort,shortLink } 
 import { authMiddleware } from '../middlewares/authMiddleware.js';
 const router = express.Router();
 
-router.post('/urls/shorten', shortLink);
+router.post('/urls/shorten', authMiddleware, shortLink);
 router.get('/urls/:id', showShort);
 router.get('/urls/open/:shortUrl', openShort );
 router.delete('/urls/:id', authMiddleware, deleteShort );

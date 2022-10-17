@@ -10,17 +10,21 @@ async function authMiddleware(req, res, next) {
   }
 
   try {
-    const session = await mongo.collection(COLLECTIONS.SESSIONS).findOne({
-      token,
-    });
+    const session = await connection.query( `
+    SELECT * FROM ${COLLECTIONS.SESSIONS} WHERE token LIKE $1;
+    `,
+      [`${token}%`]
+    );
 
     if (!session) {
       return res.send(STATUS_CODE.UNAUTHORIZED);
     }
 
-    const user = await mongo.collection(COLLECTIONS.USERS).findOne({
-      _id: session.userId,
-    });
+    const user = await connection.query( `
+    SELECT * FROM ${COLLECTIONS.USERS} WHERE id LIKE $1;
+    `,
+      [`${session.userId}%`]
+    );
 
     res.locals.session = session;
     res.locals.user = user;

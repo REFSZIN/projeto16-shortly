@@ -1,128 +1,163 @@
 import connection from '../db/db.js';
+import { nanoid } from 'nanoid'
+import { stripHtml } from "string-strip-html";
 import { STATUS_CODE } from '../enums/statusCode.js';
 import { COLLECTIONS } from '../enums/collections.js';
-import { schemaCheckout,schemaCart } from '../schemas/shortSchemas.js';
+
 
 const shortLink = async (req, res) =>{
+  const {url} = req.body;
+  const {token} = req.locals.session;
+  const cleansedUrl = stripHtml(url).result;
   try {
-      const products = await db.collection(COLLECTIONS.PRODUCTS).find().toArray();
-      return res.send(products);
+    const { rows:session } = await connection.query(`
+        SELECT * FROM ${COLLECTIONS.SESSIONS} s
+        WHERE s.token = $1`,
+        [`${token}%`]
+      );
+    if(session === undefined || null || session.length === 0){
+      res.status(STATUS_CODE.ERRORUNAUTHORIZED).send(
+        `Usuário não autorizado`
+        ); 
+    }
+    const shortenedUrl = nanoid(8);
+    connection.query(`
+        INSERT INTO ${COLLECTIONS.LINKS} (url,"short","userId")
+        VALUES ($1,$2,$3)`,
+      [`${cleansedUrl.trim()}%`,`${shortenedUrl}%`,`${session[0].userId}%`]
+    );
+    return res.status(STATUS_CODE.SUCCESSOK).send({shortUrl:shortenedUrl});
   } catch (error) {
-      console.error(error);
+      if(error.constraint === 'proper_url') return res.status(STATUS_CODE.ERRORUNPROCESSABLEENTITY).send({message:'Invalid URL Format'});
       return res.sendStatus(STATUS_CODE.SERVERERRORINTERNAL);
   };
 };
 
 const showShort = async (req, res) =>{
-  const {product, email } = req.body;
-  const cart = {product,email};
-  const valid = schemaCart.validate(cart, {abortEarly: false});
-
-  if(valid.errorMessage){
-    const erros = validation.error.details.map((err) => err.message);
-    res.status(STATUS_CODE.ERRORUNPROCESSABLEENTITY).send(
-      `Todos os campos são obrigatórios! : ${erros}`
-      ); 
-    return
-  };
-
+  const { id } = req.params;
+  if(isNaN(parseInt(id))) return res.sendStatus(STATUS_CODE.ERRORUNPROCESSABLEENTITY);
   try {
-      await db.collection(COLLECTIONS.CARTS).insertOne({
-        product,email
-      });
-      return res.sendStatus(200);
+      const { rows:url } = await connection.query(`
+          SELECT * FROM  ${COLLECTIONS.LINKS} l
+          WHERE u.id = $1`,
+        [`${id}%`]
+      );
+      if(!url.length > 0) return res.sendStatus(STATUS_CODE.ERRORNOTFOUND)
+      const body = {
+          id: url[0].id,
+          url: url[0].url,
+          shortUrl: url[0].short
+      };
+      res.status(STATUS_CODE.SUCCESSOK).send(body);
   } catch (error) {
-      console.error(error);
-      return res.sendStatus(STATUS_CODE.SERVERERRORINTERNAL);
+    return res.sendStatus(STATUS_CODE.SERVERERRORINTERNAL);
   }
 };
 
 const openShort = async (req, res) =>{
-  const { email } = req.body;
+  const { shortUrl } = req.params;
+  const cleansedUrl = stripHtml(shortUrl).result;
   try {
-      const myCart = await db.collection(COLLECTIONS.CARTS).find(email).toArray();
-      return res.send(myCart);
+      const { rows:url } = connection.query(`
+        SELECT * FROM ${COLLECTIONS.LINKS} l
+        WHERE "short" = $1`,
+      [cleansedUrl]
+    );
+      if(!url.length > 0) return res.sendStatus(STATUS_CODE.ERRORNOTFOUND);
+      connection.query(`
+          UPDATE ${COLLECTIONS.LINKS}
+          SET "visitCount" = "visitCount" + 1
+          WHERE "short" = $1`,
+        [cleansedUrl]
+        );
+      res.redirect(STATUS_CODE.SUCCESSOK,url[0].url);
   } catch (error) {
-      console.error(error);
-      return res.sendStatus(STATUS_CODE.SERVERERRORINTERNAL);
-  };
+      res.sendStatus(STATUS_CODE.SERVERERRORINTERNAL);
+  }
 };
 
 const deleteShort = async (req, res) =>{
-  const { ID } = req.params;
+  const {token} = req.locals.session;
+  const { id } = req.params;
+    if(isNaN(parseInt(id))) return res.sendStatus(STATUS_CODE.ERRORUNPROCESSABLEENTITY);
   try {
-      const message = await db.collection(COLLECTIONS.CARTS).findOne({_id: ObjectId(`${ID}`)});
-    if(!message){
-      return res.sendStatus(STATUS_CODE.ERRORNOTFOUND);
-    }
-    await db.collection(COLLECTIONS.CARTS).deleteOne({_id: ObjectId(`${ID}`)});
-    res.sendStatus(STATUS_CODE.SUCCESSOK);
-  } catch(e) {
-      res.status(STATUS_CODE.SERVERERRORINTERNAL).send({errorMessage: `Não foi possível deletar! Causa: ${e}`});
+    const { rows:session } = await connection.query(`
+      SELECT * FROM ${COLLECTIONS.SESSIONS} s
+      WHERE s.token = $1`,
+    [`${token}%`]
+  );
+  if(session === undefined || null || session.length === 0){
+    res.status(STATUS_CODE.ERRORUNAUTHORIZED).send(
+      `Usuário não autorizado`
+      ); 
+  }
+  const { rows:url } = await connection.query(`
+      SELECT * FROM  ${COLLECTIONS.LINKS} l
+      WHERE u.id = $1`,
+    [`${id}%`]
+  );
+  if(!url.length > 0 || url === undefined || url === null){
+    return res.sendStatus(STATUS_CODE.ERRORNOTFOUND);
+  }
+  if(url[0].userId !== session[0].userId) return res.sendStatus(STATUS_CODE.ERRORUNAUTHORIZED)
+  connection.query(`
+      DELETE FROM ${COLLECTIONS.LINKS} l
+      WHERE id = $1`,
+    [`${id}%`]
+  );
+  res.sendStatus(STATUS_CODE.SUCCESSNOCONTENT);
+  } catch (error) { 
+    return res.sendStatus(STATUS_CODE.SERVERERRORINTERNAL)
   }
 };
 
 const listShortUsers = async (req, res) =>{
-  const { user } = res.locals;
+  const { token } = req.locals;
   try {
-      const checkout = await db.collection(COLLECTIONS.CHECKOUTS).find({email: user.email});
-  if(!checkout){
-      return res.sendStatus(STATUS_CODE.ERRORNOTFOUND);
-  }
-      return res.send(checkout);
-  } catch(e) {
-      res.status(STATUS_CODE.SERVERERRORINTERNAL).send({errorMessage: `Não foi possível fazer Checkout! Causa: ${e}`});
+    const { rows:session } = await connection.query(`
+        SELECT s.*,users.name FROM ${COLLECTIONS.SESSIONS} s
+        JOIN ${COLLECTIONS.USERS} ON ${COLLECTIONS.USERS}.id = s."userId"
+        WHERE s.token = $1`,
+      [`${token}%`]
+    );
+    if(!session.length > 0) return res.sendStatus(COLLECTIONS.ERRORUNAUTHORIZED);
+    const { rows:userInfo } = connection.query(`
+        SELECT u.id,u.url,u."short",u."visitCount" FROM ${COLLECTIONS.RANKING} u
+        WHERE u."userId" = $1
+        ORDER BY u."visitCount" DESC`,
+      [`${session[0].userId}%`]
+    );
+      let totalVisits = 0
+      userInfo.forEach(url => totalVisits+=url.visitCount);
+      const body = {
+          id: session[0].userId,
+          name: session[0].name,
+          visitCount: totalVisits,
+          shortenedUrls: userInfo
+      }
+      res.status(STATUS_CODE.SUCCESSOK).send(body);
+  } catch (error) {
+      res.sendStatus(STATUS_CODE.SERVERERRORINTERNAL);
   }
 };
 
 const showRanking = async (req, res) =>{
-  const { user } = res.locals;
-
-  const{
-    email,
-    cep,
-    number,
-    state,
-    district,
-    city,
-    payMethod,
-    request,
-    price} = req.body;
-
-  const pedido ={   
-    user,
-    email,
-    cep,
-    number,
-    state,
-    district,
-    city,
-    payMethod,
-    request,
-    price
-  };
-
-  const valid = schemaCheckout.validate(pedido, {abortEarly: false});
-
-  if(valid.errorMessage){
-    const erros = validation.error.details.map((err) => err.message);
-    res.status(STATUS_CODE.ERRORUNPROCESSABLEENTITY).send(
-      `Todos os campos são obrigatórios! : ${erros}`
-      ); 
-    return
-  };
-
   try {
-      const finalcart = await db.collection(COLLECTIONS.CARTS).find({email: email});
-  
-  if(!finalcart){
-      return res.sendStatus(STATUS_CODE.ERRORNOTFOUND);
-  }
-      await db.collection(COLLECTIONS.CHECKOUTS).insertOne({pedido});
-      await db.collection(COLLECTIONS.CARTS).deleteMany({email: email});
-      res.sendStatus(STATUS_CODE.SUCCESSOK);
-  } catch(e) {
-      res.status(STATUS_CODE.SERVERERRORINTERNAL).send({errorMessage: `Não foi possível fazer Checkout! Causa: ${e}`});
+    const { rows:body } = await connection.query(`
+    SELECT usr.id,usr.name,COUNT(u.id) as "linksCount",
+    COALESCE(SUM(u."visitCount"),0) as "visitCount" FROM ${COLLECTIONS.USERS} usr
+    LEFT JOIN ${COLLECTIONS.LINKS} u ON usr.id = u."userId"
+    GROUP BY usr.id
+    ORDER BY "visitCount" DESC
+    LIMIT 10`);
+
+    connection.query(`
+    SELECT u.id,u.url,u."shortUrl",u."visitCount" FROM ${COLLECTIONS.LINKS} u
+    WHERE u."userId" = $1
+    ORDER BY u."visitCount" DESC`,[`${id}%`]);
+    res.status(STATUS_CODE.SUCCESSOK).send(body)
+  } catch (error) {
+    res.sendStatus(STATUS_CODE.SERVERERRORINTERNAL);
   }
 };
 
