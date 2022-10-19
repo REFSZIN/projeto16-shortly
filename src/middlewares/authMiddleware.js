@@ -13,7 +13,7 @@ async function authMiddleware(req, res, next) {
     const session = await connection.query( `
     SELECT * FROM ${COLLECTIONS.SESSIONS} WHERE token LIKE $1;
     `,
-      [`${token}%`]
+      [`${token}`]
     );
 
     if (!session) {
@@ -23,7 +23,7 @@ async function authMiddleware(req, res, next) {
     const user = await connection.query( `
     SELECT * FROM ${COLLECTIONS.USERS} WHERE id LIKE $1;
     `,
-      [`${session.userId}%`]
+      [`${session.userId}`]
     );
 
     res.locals.session = session;
