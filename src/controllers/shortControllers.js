@@ -9,17 +9,20 @@ const shortLink = async (req, res) =>{
   const {url} = req.body;
   const {token} = req.locals.session;
   const cleansedUrl = stripHtml(url).result;
+  console.log(req.locals.session)
   try {
     const { rows:session } = await connection.query(`
         SELECT * FROM ${COLLECTIONS.SESSIONS} s
         WHERE s.token = $1`,
         [`${token}`]
       );
+      console.log(session)
     if(session === undefined || null || session.length === 0){
       res.status(STATUS_CODE.ERRORUNAUTHORIZED).send(
         `Usuário não autorizado`
         ); 
     }
+    console.log(session)
     const shortenedUrl = nanoid(8);
     connection.query(`
         INSERT INTO ${COLLECTIONS.LINKS} ("url","short","userId")
@@ -30,7 +33,7 @@ const shortLink = async (req, res) =>{
   } catch (error) {
       if(error.constraint === 'proper_url') return res.status(STATUS_CODE.ERRORUNPROCESSABLEENTITY).send({message:'Invalid URL Format'});
       return res.sendStatus(STATUS_CODE.SERVERERRORINTERNAL);
-  };
+  }
 };
 
 const showShort = async (req, res) =>{

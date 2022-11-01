@@ -25,7 +25,7 @@ const signUp = async (req, res) => {
       `Todos os campos são obrigatórios! : ${erros}`
       ); 
     return
-  };
+  }
 
   const passwordHash = bcrypt.hashSync(newUser.password, 10);
   try {
@@ -38,7 +38,7 @@ const signUp = async (req, res) => {
     if(!verificaUser) {
       return res.status(STATUS_CODE.ERRORCONFLICT).send(
         `Email existente : ${email}`)
-    };
+    }
     await connection.query(
       `
       INSERT INTO ${COLLECTIONS.USERS} 
@@ -55,7 +55,7 @@ const signUp = async (req, res) => {
     console.error(err);
     res.sendStatus(STATUS_CODE.SERVERERRORINTERNAL);
     return
-  };
+  }
 }
 
 const signIn = async (req, res) => {
@@ -69,7 +69,7 @@ const signIn = async (req, res) => {
       `Todos os campos são obrigatórios! : ${erros}`
       ); 
     return
-  };
+  }
 
   try {
     const {rows:user}= await connection.query( `
@@ -111,7 +111,7 @@ const signIn = async (req, res) => {
     console.error(err);
     res.sendStatus(STATUS_CODE.SERVERERRORINTERNAL);
     return
-  };
+  }
 }
 
 export {signIn,signUp};
